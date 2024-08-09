@@ -1,0 +1,897 @@
+---
+title: "Real Fantasy"
+author: "Josh Rochlin Capstone"
+output:
+  flexdashboard::flex_dashboard:
+    source_code: embed
+    social: menu
+    theme: default
+    vertical_layout: fill
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+Project Overview {data-navmenu="About" data-orientation=rows}
+=============================================================================
+
+### **What Makes Fantasy Football So Popular?**
+
+Fantasy football is a cultural phenomenon. Over the next two months, more than 30 million people will prepare for their fantasy football drafts (Gardner, 2023), and have their hopes, dreams, and desires rest on the shoulders of a virtual squad throughout the National Football League season. This competition between family and friends has transformed the NFL viewing experience. Nothing brings the rabid passion of football fans out quite like the fantasy season. Some may root harder for members of their fantasy team over their favorite team. Others will be chained to their phones all day Sunday, praying that their big lead in the early afternoon window does not dwindle away when their opponent's players get going in the late afternoon window. For me, that has happened far too often.   
+
+The Fantasy Sports and Gaming Association said that 64 percent of fantasy sports players watch more live sports because they play fantasy (McCormick, 2019). Fantasy football just makes watching football more fun, and that is a massive win for the NFL.
+
+There is a unique power in bringing people together. No matter the outcome of your fantasy season, the time in between a draft and your final game is special. 
+
+Fantasy football is a battle between skill and luck. You can have the best, highest-scoring team in your league heading into the playoffs and get bounced in the first round because your starting quarterback unfortunately had to play in terribly windy conditions. You can come out of a draft feeling like you are going to dominate your league, but your first-round pick tears his ACL in the second quarter of Week 1. 
+
+Every season, you enter the great unknown. The sheer unpredictability of the NFL season is what makes the game so captivating. 
+
+### **My Motivation**
+
+Brad Congelio, an assistant professor in the College of Business at Kutztown University of Pennsylvania, wrote the ultimate book on NFL analytics with R: *Introduction to NFL Analytics with R*. His work has strengthened my passion for coding, pushing me to become a more data-driven professional. I have always wanted to learn how to work with NFL analytics. Doing my capstone on fantasy football would be a welcomed challenge. I am still in the early stages of my R journey, but the tidyverse language, which is necessary to do NFL analytics, is beginning to speak to me. Much of the code in this work was learned through Congelio’s book, and I am excited to see my R skills get better as I finish my master’s in business analytics program at the University of Miami. 
+
+
+Data Description {data-navmenu="Data"}
+=============================================================================
+
+### **Packages and Datasets Used**
+
+This summer, I have started to experiment with `tidyverse` and the `dplyr` functions that are essential in extracting, cleaning, and manipulating NFL data. I know I have a long way to go, but I am glad I have developed a foundation. The visualizations (line plots, regression plots, area plots, etc.) in this project were created using `ggplot2`. It has been much fun to visualize data from a sport that I love.
+
+The data in this work comes from `nflfastr`, `nflverse`, and `nflreadr`. `nflfastr` includes play-by-play data from 1999 and is updated every NFL season. Within `nflfastr`, I can use team colors and logos, which are crucial for creating aesthetically pleasing plots and graphs. `nflreadr` gives access to more specific NFL data, such as player season stats, which are used extensively throughout this work.
+
+
+```{r, message = FALSE, warning = FALSE, echo = TRUE, results = 'hide'}
+#loading packages
+library(tidyverse)
+library(nflfastR)
+library(nflverse)
+library(ggplot2)
+library(ggimage)
+library(gt)
+library(ggrepel)
+library(dplyr)
+library(grid)
+library(scales)
+library(ggfx)
+library(nflreadr)
+library(vroom)
+library(factoextra)
+library(plotly)
+library(corrplot)
+library(glmnet)
+```
+
+
+### **Questions to Be Answered**
+
+The goal of this work is to understand what makes a dependable fantasy player in the PPR (Points-Per-Reception) scoring format for the 2024 season. In standard PPR leagues, a player in your starting lineup will **receive a point if he records a reception**. Because the NFL has become a pass-first league, receptions are a crucial component of the real-life game, as well as fantasy. 
+
+In standard PPR leagues, you are required to draft one starting quarterback, two starting running backs, two starting wide receivers, one starting tight end, one FLEX starter (a running back, wide receiver, or tight end), one starting kicker, and a starting defense. 
+
+We will examine stats and trends by quarterbacks, running backs, and wide receivers, by far the most important positions in fantasy. I will provide my own commentary about players who I feel should be targeted and avoided this season.  
+
+For **quarterbacks**, we will answer: 
+
+1. How Can Quarterbacks Score Points in Fantasy?
+
+2. Which Non-Fantasy Stats Contribute to PPR Points?
+
+3. Do the Best Fantasy Quarterbacks Play for Winning Teams?
+
+We will also look at the effects of passing efficiency on quarterback performance. 
+
+For **running backs**, we will look at clusters for basic running back stats and perform a PCA for advanced stats. 
+
+For **wide receivers,** we will run a lasso regression to see if basic stats or advanced stats are better to predict performance. 
+
+Let us jump into the analysis! 
+
+
+```{r}
+#Checking offensive variables within load_player_stats
+offensive.stats <- load_player_stats(2019:2023)
+```
+
+Basic Stat Analysis {data-navmenu="Quarterbacks" data-orientation=columns}
+=============================================================================
+
+Column {.sidebar data-width=450}
+-----------------------------------------------------------------------------
+
+#### **How Can Quarterbacks Score Points in Fantasy?** 
+
+Basic stats are the foundation of fantasy football scoring. Quarterbacks (and running backs, wide receivers, and tight ends) can score fantasy points through the following basic stats:  
+
+**-Rushing/Receiving Touchdowns:** 6 points 
+
+**-Rushing/Receiving Yards:** 1 point for every 10 yards  
+
+**-Receptions:** 1 point 
+
+**-Passing Touchdowns:** 4 points 
+
+**-Passing Yards:** 1 point for every 25 yards 
+
+**-Passing Interceptions Thrown:** -2 points 
+
+**-Fumbles Lost to Opponent:** -2 points 
+
+**-Passing/Rushing/Receiving 2 Point Conversions:** 2 points 
+
+For this portion of the analysis, we will look at **QBs during the 2023 regular season with over 100 passing attempts**.  
+
+The `QB_fantasy_model` in the **first tab to the right** uses PPR points as a response variable, and the above statistics as predictor variables (receiving stats are not included because of how rare it is for a quarterback to be in a position to catch a pass). The predictor variables explain **100 percent** of the variance in PPR points, achieving a perfect r-squared value. There is no room for error in this model because the predictor variables are the only ways quarterbacks can score points in fantasy football.  
+
+Quarterbacks who produce great fantasy seasons throw for a lot of yards and throw a lot of touchdowns. From 2009 to 2019, 55 percent of quarterback fantasy scoring came from passing yards, and 34 percent came from passing touchdowns (Kelley, 2019). In 2023, **eight** of the top 10 fantasy quarterbacks threw for over 4,000 yards, and seven threw **more than 25 touchdowns**, placing them in elite territory.  
+
+As offensive lines become more porous in the NFL, elite fantasy quarterbacks not only have to be efficient passers, but exceptionally talented with their legs. Josh Allen, Jalen Hurts, and Lamar Jackson, who finished as the **QB1**, **QB2**, and **QB4** respectively last season, were good-to-great passers, but added immense value on the ground. Their ability to escape the pocket, keep plays alive, and score rushing touchdowns at the goal-line make them rock-solid options heading into the 2024 season. 
+
+
+#### **Which Non-Fantasy Stats Contribute to PPR Points?** 
+
+To gain an edge over your league mates, it can be helpful to understand not only what a quarterback produces, but how he produces. Is he trusted by his coaching staff to gain big yards on third downs? Is he able to put up points in cold weather, when the fantasy playoffs approach? Are a lot of rushing plays called for him, or does he have to get rushing yards off scrambles? Does he play behind a poor offensive line? How does he respond to defenses who relentlessly blitz? Everyone looks at yards and touchdowns totals when preparing for which quarterbacks to target in their draft, but those stats do not tell the entire story about how much fantasy success a quarterback will have.  
+
+#### **Basic QB Stats Corrplot**  
+
+The corrplot in the second tab looks at the relationship between PPR points and basic quarterback stats that cannot contribute to points in the standard PPR system. Let us go over some insights.  
+
+There is a **strong, positive correlation** between PPR points and getting first downs through the air and on the ground. Quarterbacks who struggled to move the chains through the air in 2023, such as the Chicago Bears Justin Fields and the Denver Broncos Russell Wilson, were below-average fantasy options. The Bears and the Broncos were both in the **bottom-quarter** of the league in team passing first downs. Better yet, both quarterbacks will be battling for the Pittsburgh Steelers starting position in 2024, taking over a passing offense that ranked seventh in the NFL in first down success rate (Eckert, 2024).  
+
+Quarterbacks who play in offensive systems that emphasize passing the ball score more PPR points. En-route to his second MVP award, Lamar Jackson threw the ball a career-high **457 times** in 2023. There was a ton of chatter last off-season about new offensive coordinator Todd Monken transforming the Ravens into a pass-first offense. That transformation worked wonders for Jackson and should again in 2024 as the dual threat looks to grow with his arm.   
+
+Justin Herbert had a disappointing 2023 campaign marred by a broken hand, injured offensive weapons, and a lackluster coaching staff. The fifth-year signal caller had the least number of attempts of his career due to his injury and missed games. Greg Roman, the Chargers new offense coordinator, likes to run the football, and will be the fourth OC Herbert works with. A new system could be refreshing for Herbert, but I am wary of him being a reliable starting option, even with his nuclear arm talent. 
+
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE, results = 'hide'}
+
+#Creating a dataset for QBs
+QB_fantasy_stats <- load_player_stats(2023) %>%
+  filter(season_type == "REG" & position =="QB") %>%
+  group_by(player_display_name, recent_team) %>%
+  summarize(attempts = sum(attempts), pass_yards = sum(passing_yards), pass_td = sum(passing_tds), int = sum(interceptions), rush_yards = sum(rushing_yards), rush_tds = sum(rushing_tds), fumbles = sum(sack_fumbles_lost + rushing_fumbles_lost), two_pt_conversions = sum(passing_2pt_conversions, rushing_2pt_conversions, receiving_2pt_conversions), ppr_points = sum(fantasy_points_ppr)) %>%
+  filter(attempts >=100) %>%
+  select(-attempts)
+```
+
+Column {.tabset .tabset-fade}
+-----------------------------------------------------------------------------
+
+### **Multiple Regression Model for Predicting QB PPR Points Using Fantasy Stats**
+
+```{r, message = FALSE, warning = FALSE, echo = TRUE}
+QB_fantasy_model = lm(ppr_points ~. -player_display_name -recent_team, data = QB_fantasy_stats)
+summary(QB_fantasy_model)
+```
+
+```{r}
+QB_basic_stats <- load_player_stats(2023) %>%
+  filter(season_type == "REG" & position =="QB") %>%
+  group_by(player_display_name, recent_team) %>%
+  summarize(completions = sum(completions), attempts = sum(attempts),sacks = sum(sacks), sack_yards = sum(sack_yards), pass_air_yards = mean(passing_air_yards), pass_firstdowns = sum(passing_first_downs), rush_firstdowns = sum(rushing_first_downs), carries = sum(carries), ppr_points = sum(fantasy_points_ppr)) %>%
+  filter(attempts >=100)
+```
+
+### **Corrplot for Predicting QB PPR Points Using Non-Fantasy Basic Stats**
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE, results = 'hide'}
+#Corrplot of basic stats 
+QB_basic_numeric <- QB_basic_stats[, -c(1, 2)] 
+c = cor(QB_basic_numeric)
+```
+
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
+corrplot(c)
+```
+
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE, results = 'hide'}
+#Plot of QB Passing TDs vs. PPR Points
+
+#Getting team info 
+teams <- load_teams(current = TRUE) %>%
+  select(team_abbr, team_color, team_color2)
+
+logos <- load_teams(current = TRUE) %>%
+  select(team_abbr, team_logo_wikipedia)
+
+QB_fantasy_stats <- QB_fantasy_stats %>%
+  left_join(teams, by = c("recent_team" = "team_abbr"))
+
+QB_basic_stats <- QB_basic_stats %>%
+  left_join(teams, by = c("recent_team" = "team_abbr"))
+```
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
+#Plot
+my_theme <- function(..., base_size = 12) {
+  
+    theme(
+      text = element_text(family = "sans", size = base_size),
+      axis.ticks = element_blank(),
+      axis.title = element_text(color = "black",
+                                face = "bold"),
+      axis.text = element_text(color = "black",
+                               face = "bold"),
+      plot.title.position = "plot",
+      plot.title = element_text(size = 16,
+                                face = "bold",
+                                color = "black",
+                                vjust = .02,
+                                hjust = 0.5),
+      plot.subtitle = element_text(color = "black",
+                                   hjust = 0.5),
+      plot.caption = element_text(size = 8,
+                                  face = "italic",
+                                  color = "black"),
+      panel.grid.minor = element_blank(),
+      panel.grid.major =  element_line(color = "#d0d0d0"),
+      panel.background = element_rect(fill = "#f7f7f7"),
+      plot.background = element_rect(fill = "#f7f7f7"),
+      panel.border = element_blank())
+}
+
+QB_fantasy_stats <- QB_fantasy_stats %>%
+  filter(ppr_points > 145)
+
+ggplot(data = QB_fantasy_stats, aes(x = pass_td, y = ppr_points)) + 
+  geom_mean_lines(aes(x0 = pass_td, y0 = ppr_points), 
+                  linewidth = 0.8,
+                  color = "black", 
+                  linetype = "dashed",
+                  alpha = 0.5) +
+  geom_point(color = QB_fantasy_stats$team_color, size = 3) +
+  geom_text_repel(aes(label = player_display_name),
+                  box.padding = .75,
+                  size = 3,
+                  fontface = "bold",
+                  max.overlaps = 100) +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 6)) +
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 6)) +
+  labs(x = "Passing Touchdowns", y = "PPR Points", 
+       title = "Passing Touchdowns vs. PPR Points ", subtitle = "Top 25 Fantasy Quarterbacks - 2023 Season", caption = "MS in Business Analytics Capstone Project by Josh Rochlin | data @nflfastr") + 
+  my_theme()
+```
+
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
+
+QB_basic_stats <- QB_basic_stats %>%
+  filter(ppr_points > 145)
+
+#Sacks vs. PPR Points
+ggplot(data = QB_basic_stats, aes(x = sacks, y = ppr_points)) + 
+  geom_mean_lines(aes(x0 = sacks, y0 = ppr_points), 
+                  linewidth = 0.8,
+                  color = "black", 
+                  linetype = "dashed",
+                  alpha = 0.5) +
+  geom_point(color = QB_basic_stats$team_color, size = 3) +
+  geom_text_repel(aes(label = player_display_name),
+                  box.padding = .75,
+                  size = 3,
+                  fontface = "bold",
+                  max.overlaps = 100) +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 6)) +
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 6)) +
+  labs(x = "Sacks", y = "PPR Points", 
+       title = "Sacks Taken vs. PPR Points", subtitle = "Top 25 Fantasy Quarterbacks - 2023 Season", caption = "MS in Business Analytics Capstone Project by Josh Rochlin | data @nflfastr") + 
+  my_theme()
+  
+```
+
+Do the Best Fantasy Quarterbacks Play for Winning Teams? {data-navmenu="Quarterbacks" data-orientation=columns}
+=============================================================================
+
+Column {.sidebar data-width=450}
+-----------------------------------------------------------------------------
+
+#### **Just Win Baby** 
+
+Advanced statistics are great to use for discussions about real football. Fantasy is a different ball game. I can come into a draft, armed with linear models, visualizations, and a dizzying number of stats in spreadsheets, but when I am on the clock and ready to make my pick, I rely on my gut. I go for my guys. I want to draft players who I know will win me games. For quarterbacks, I am looking for those who are on great teams, have proven success with their head coach and offensive coordinator, do not miss a lot of games, and can be trusted to build enough consistent weeks of impressive performance.
+
+This year, those quarterbacks are Josh Allen, Jalen Hurts, Lamar Jackson, Patrick Mahomes, and Brock Purdy. I know those guys are going to produce because they are great, are on great teams, and have multiple years of strong fantasy performance under their belts.
+
+A good measure of overall team efficiency is DVOA, or Defense-adjusted Value Over Average. According to Fantasypros, DVOA "measures a team’s success on each play against the league average success on that play, adjusted for the strength of the opponent." High-performing teams tend to have a positive DVOA, while low-performing teams have a negative. The DVOA vs. PPR Points Linear Plot to the right explores the relationship between **total team DVOA and quarterback fantasy production during the 2023 regular season**. 
+
+Eleven of the top 12 PPR quarterbacks in 2023 were on playoff teams, indicating a **strong positive association** between overall team success and quarterback fantasy production. Middle-of-the-road teams who just missed the playoffs, such as the Seattle Seahawks and Indianapolis Colts, were led by quarterbacks who had some good fantasy weeks but struggled to produce overall. 
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE, results = 'hide'}
+
+#Creating DVOA and points dataset
+
+QB_fantasy_stats <- QB_fantasy_stats %>%
+  filter(pass_yards >= 1600) %>%
+  filter(ppr_points > 81)
+
+DVOA <- read.csv("Total Team DVOA.csv") 
+
+DVOA <- DVOA %>%
+  select(TEAM, TOTAL.DVOA)
+
+QB_fantasy_stats <- QB_fantasy_stats %>%
+  left_join(DVOA, by = c("recent_team" = "TEAM"))
+
+QB_fantasy_stats <- QB_fantasy_stats %>%
+  left_join(logos, by = c("recent_team" = "team_abbr"))
+
+
+```
+
+Column {.tabset .tabset-fade}
+-----------------------------------------------------------------------------
+
+### **DVOA vs. PPR Points Linear Plot**
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
+#DVOA vs. PPR Points
+ggplot(data = QB_fantasy_stats, aes(x = ppr_points, y = TOTAL.DVOA)) + 
+  geom_smooth(method = "lm", se = FALSE,
+              color = "black",
+              linetype = "dashed",
+              size = .8) +
+  geom_image(aes(image = team_logo_wikipedia), asp = 16/9) +
+  scale_x_continuous(breaks = pretty_breaks(),
+                     labels = comma_format()) +
+  scale_y_continuous(breaks = pretty_breaks()) +
+  labs(x = "PPR Points", y = "Total DVOA", 
+       title = "PPR Points vs. Total DVOA", subtitle = "Starting Quarterbacks - Minimum 1600 Passing Yards: 2023 Season", caption = "MS in Business Analytics Capstone Project by Josh Rochlin | data @nflfastr") + 
+  my_theme()
+```
+
+
+Passing Efficiency {data-navmenu="Quarterbacks" data-orientation=columns}
+=============================================================================
+
+Column {.sidebar data-width=450}
+-----------------------------------------------------------------------------
+
+#### **Week-to-Week Passing EPA Performance**
+
+EPA (Expected Points Added) has become an essential advanced statistic in football analytics. It measures how many points a team can expect to add to their scoring total based on game situations such as down, distance, field position, time remaining, etc. 
+
+Passing EPA focuses solely on **QB play and their contribution to the offense**.
+
+Looking at the Passing EPA display in the **first tab to the right**, Lamar Jackson had the highest Passing EPA of the season in Week 17 against the Dolphins, which resulted in his highest fantasy output of the season. Jackson's contribution to the Ravens 56-19 beat-down of the Dolphins was astounding, adding 28 expected points to their total.
+
+Even though I do not focus so much on advanced stats when drafting quarterbacks, diving into the weekly passing EPA of some former No.1 picks I expect to bounce back this season can be worthwhile.
+
+#### **Live by the Law**
+
+**Check out the two line plots in the tabs to the right to view the weekly Passing EPA plots of Trevor Lawrence and Joe Burrow.**
+
+Trevor Lawrence struggled mightily against top ranked defenses in 2023. His Passing EPA cratered when he faced the Browns, Ravens, 49ers, and Chiefs, who were all **top 10 in yards per offensive play**. It is not fun to face those relentless defensive fronts when you are dealing with a knee bruise, a high ankle sprain, and a banged-up O-line. This year, he will get another crack at the Browns at home, when it is still extremely humid in Jacksonville (no one likes playing football in Florida in September). Lawrence displayed extreme toughness by playing 16 games with his nagging injuries, but that can cause a lot of trouble for fantasy owners who will always play their starter if he is in the lineup. 
+
+Lawrence's stellar play from Week 11-13 saved his fantasy season from falling into the abyss. The former No.1 pick signed a massive contract extension this off-season that will pay him $55 million per year, so that should lift some weight off his shoulders. Almost 70 percent of QBs improve their points per game after signing an extension (Ryner, 2022). Lawrence was not able to establish a good rapport with wide receiver Calvin Ridley, who signed with the Titans in free agency. However, standout tight end Evan Engram, Lawrence's favorite target in WR Christian Kirk, and running back Travis Etienne all return to Duval County. This is a make-or-break fantasy season for T-Law, but I see him **responding in a big way** if he protects the football and stays healthy.  
+
+#### **Joe Cooled**
+
+A pre-season calf injury got Bengals star QB Joe Burrow off to a slow start in 2023. His play picked up as his calf healed, as he put on vintage performances against the intimidating 49ers and Bills defenses, but a torn ligament in his wrist against the Ravens ended his season. The former national champion at LSU is fully healthy this year. Burrow may not produce on the ground, but he is an excellent pocket passer. I am excited to see how Burrow throws the ball to start the season. According to Fantasypros, he is being drafted as the ninth overall QB off the board in PPR leagues, which warrants him mid-round consideration. Although the wrist injury does concern me a bit, Burrow is in line for a fine fantasy season.  
+
+
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
+
+#Creating dataset for Weekly Passing EPA during 2023 Regular Season 
+qb_epa <- offensive.stats %>%
+  filter(position == "QB" & season == 2023 & season_type == "REG") %>%
+  group_by(player_display_name) %>%
+  select(week, opponent_team, passing_epa, fantasy_points_ppr) %>%
+  arrange(-passing_epa)
+
+logos <- load_teams(current = TRUE) %>%
+  select(team_abbr, team_logo_wikipedia)
+
+qb_epa <-qb_epa %>%
+  left_join(logos, by = c("opponent_team" = "team_abbr"))
+```
+
+Column {.tabset .tabset-fade}
+-----------------------------------------------------------------------------
+
+### **EPA vs. PPR Points Linear Model**
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE, results = 'hide'}
+
+#EPA linear model 
+epa = lm(fantasy_points_ppr ~ passing_epa, data = qb_epa)
+summary(epa)
+```
+
+
+```{r, message = FALSE, warning = FALSE, echo = TRUE}
+head(qb_epa)
+```
+
+### **Trevor Lawrence**
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
+#Trevor Lawrence average passing EPA per week
+
+T_Lawrence <- qb_epa %>%
+  filter(player_display_name == "Trevor Lawrence")
+
+ggplot(data = T_Lawrence, aes(x = week, y = passing_epa)) +
+  geom_smooth(se = FALSE, color = "black", linetype = "dashed") +
+  geom_area(fill = "#000000", alpha = 0.4) +
+  geom_line(color = "#006778", size = 1.5) + 
+  geom_image(aes(image = team_logo_wikipedia), size = 0.045, asp = 16/9) +
+  scale_x_continuous(breaks = seq(1,18,1)) +
+  scale_y_continuous(breaks = pretty_breaks()) + 
+  my_theme() +
+  xlab("Week") +
+  ylab("Passing EPA") +
+  labs(title = "Trevor Lawrence Passing EPA per Week", subtitle = "2023 Regular Season", caption = "MS in Business Analytics Capstone Project by Josh Rochlin | data @nflfastr")
+```
+
+### **Joe Burrow**
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
+#Joe Burrow average passing EPA per week
+
+J_Burr <- qb_epa %>%
+  filter(player_display_name == "Joe Burrow")
+
+ggplot(data = J_Burr, aes(x = week, y = passing_epa)) +
+  geom_smooth(se = FALSE, color = "black", linetype = "dashed") +
+  geom_area(fill = "#000000", alpha = 0.4) +
+  geom_line(color = "#FB4F14", size = 1.5) + 
+  geom_image(aes(image = team_logo_wikipedia), size = 0.045, asp = 16/9) +
+  scale_x_continuous(breaks = seq(1,18,1)) +
+  scale_y_continuous(breaks = pretty_breaks()) + 
+  my_theme() +
+  xlab("Week") +
+  ylab("Passing EPA") +
+  labs(title = "Joe Burrow Passing EPA per Week", subtitle = "2023 Regular Season", caption = "MS in Business Analytics Capstone Project by Josh Rochlin | data @nflfastr")
+```
+
+
+
+
+Basic Stat Clustering {data-navmenu="Running Backs" data-orientation=columns}
+=============================================================================
+
+
+Column {.sidebar data-width=450}
+-----------------------------------------------------------------------------
+
+#### **Going the Way of the Buffalo**
+
+The reliance on a workhorse running back, and the overall value of the position, has decreased in the NFL. The running back franchise tag is the smallest ($11.9 million) among offensive positions, only increasing by $1 million since 2015. General managers are becoming more wary of giving running backs big contracts and do not view them as a premium weapon. Teams that have a running back with a **top 10 cap hit are barely above .500**, the worst among offensive positions (Clawson, 2023). Modern-day offenses live and die by the pass. The best QBs in college and the NFL are significant running threats. The best teams just do not run the ball all that much anymore.  
+
+The market may have flipped on running backs in real football, but drafting the right running backs in fantasy will pay huge dividends for your team. RBs are the hardest position group to gauge in fantasy. Every team must draft two starting backs in standard PPR format. More so than the other positions, it is necessary to know what offensive situation a back is in. There are several "running back committees" around the league with teams utilizing more than one back throughout the game. The 2023 Lions "thunder and lightning" approach with David Montgomery and Jahmyr Gibbs, where the former gobbled up touchdowns at the goal-line and the latter excelled as a receiving threat, proved the viability of splitting the workload at the position. Both backs had **1,100+ yards from scrimmage** (Berreman, 2024), supercharging Detroit to its first conference championship game in over two decades.  
+
+Because the running back pool is so scarce in fantasy, a fun exercise can be to look at running back stats in **clusters**. Hopefully, this will be an uncomplicated way to isolate the strongest/weakest performers and most dependable weekly options. We will be exploring carries and rushing touchdowns, two simple stats with significant fantasy consequences. Let us jump into the carries cluster. 
+
+#### **Carries Cluster**
+
+Volume matters the most for running backs. Running backs who see a lot of volume are prone to more wear and tear, so it makes sense to target guys who have proven they can handle the workload and have not suffered any major injuries. Those guys are exceedingly rare. 
+
+For the `RB Carries Cluster` in the first tab to the right, we are looking at fantasy relevant running backs from the 2023 season. Running backs are considered fantasy relevant if they have **more than 800 rushing yards** in a season. The backs are placed in four groups based on the number of carries and fantasy points produced. I will not go over every running back in each cluster, but instead provide some talking points about a few who have interesting story-lines going into the new season. 
+
+**Group 1 (Blue)**: 
+
+The guys in this group are high-volume backs who will be **trusted to receive a lot of carries**. The Buccanneers' Rachaad White played all 17 games and was a target monster. He rightfully struggled running the ball behind a below-average line, but he has a lot of time to grow into a physical runner. White should be one of the first running backs taken off the board in 2024. 
+
+**Group 2 (Orange)**: 
+
+Packers RB Aaron Jones was one of the most reliable fantasy options from 2019-2022, playing more than 14 games each season. Injuries finally caught up to Jones in 2023, hence his lack of carries. He will play for the Vikings behind a rookie quarterback this season at **29-years-old**. His best fantasy days are behind him.  
+
+Dolphins RB Devon Achane exploded onto the scene before an MCL sprain sidelined him for six games. His extremely high ceiling will be enticing for many fantasy owners, but I am worried about his size. Achane is a good mid-round pick however playing in the Dolphins high-octane offense.  
+
+**Group 3 (Green)**: 
+
+If he can stay healthy, Saquon Barkley should find new life in Philadelphia. Going from the Giants offensive line to the Eagles offensive line is like upgrading from a paper-thin wall to a brick wall. He should benefit from the **short-passing system** in the City of Brotherly Love. 
+
+I am not high on Najee Harris this year. The fourth year back for the Steelers ceded a lot of work to Jaylen Warren in the passing-game last year. Warren looks like he is becoming the more reliable option in Pittsburgh, and I would not be surprised if he is the clear No.1 guy in the backfield by the midpoint of the season. 
+
+**Group 4 (Gray)**: 
+
+There is Christian McCaffrey, and there is everyone else. He is simply in another stratosphere. He is a bell-cow, a limitless receiving threat, and the most unbreakable back in the league. Production will always be there. McCaffrey should repeat as the overall RB1 in fantasy again this season. 
+
+#### **Rushing Touchdowns Cluster**
+
+For the rushing touchdowns cluster, we will point out some candidates for positive touchdown regression.
+
+**Group 1 (Blue)**: 
+
+I am a big believer in Breece Hall. Jets fans can finally say they have a respectable offensive line on paper heading into 2024. Hall already thrives in the passing game, as he led all running backs in targets, receiving yards, and receptions in 2023. He only scored five rushing touchdowns, but I think he will be given more opportunities at the goal-line to pound the ball through. The Iowa State product is always good for a breakaway run where he can gobble up touchdowns as well. 
+
+**Group 2 (Orange)**: 
+
+Go after Jaylen Warren this year. Defenses play an elusive game of tag with him, as he was **first in missed tackles forced per attempt**, per Fantasypros. Warren fits the type of a small back who can handle a workhorse load with his 5'8, 215-pound frame. Arthur Smith, who likes to run the ball, takes over the play-calling for the Steelers. Warren should fit in nicely with Smith's scheme. 
+
+**Group 3 (Green)**: 
+
+The next McCaffrey could be brewing in Falcons standout Bijan Robinson. The powerhouse back's production was stifled by former head coach Arthur Smith, but Robinson was still able to turn in a top 10 fantasy season. Smith is now gone, and with a capable quarterback in Kirk Cousins now leading the way for Atlanta, the 22-year-old is ready to run. He should easily eclipse four rushing touchdowns and ascend amongst the league-leaders. With three straight home games in a closed roof stadium lined up from Week 3-5, Robinson will look to put on an early-season spectacle for fantasy owners that should give him momentum down the road. 
+
+**Group 4 (Gray)**: 
+
+See my above notes about McCaffrey. **Nothing is slowing him down**. 
+
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE, results = 'hide'}
+#Looking at basic rb stats 
+rb_basic <- load_player_stats(2023) %>%
+  filter(position == "RB") %>%
+  group_by(player_display_name, recent_team) %>%
+  summarize(carries =sum(carries), rush_yards =sum(rushing_yards), rush_tds = sum(rushing_tds), ppr_points = sum(fantasy_points_ppr)) %>%
+  filter(rush_yards >=800)
+
+rb_basic <- rb_basic %>%
+  left_join(teams, by = c("recent_team" = "team_abbr"))
+```
+
+
+Column {.tabset .tabset-fade}
+-----------------------------------------------------------------------------
+
+### **RB Carries Cluster**
+
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
+
+set.seed(4)
+
+rb_cluster_carries <- kmeans(rb_basic[, c("ppr_points", "carries")], centers = 4)
+
+rb_basic$cluster <- as.factor(rb_cluster_carries$cluster)
+
+cluster_colors <- c("1" = "blue", "2" = "orange", "3" = "green", "4" = "gray")
+cluster_labels <- c("1" = "Group 1", "2" = "Group 2", "3" = "Group 3", "4" = "Group 4")
+
+# Create a scatterplot to visualize the clusters
+ggplot(data = rb_basic, aes(x = ppr_points, y = carries, color = cluster, label = player_display_name)) +
+geom_point(size = 3) +
+  geom_text_repel(aes(label = player_display_name), size = 3, max.overlaps = 15) +
+scale_color_manual(values = cluster_colors, labels = cluster_labels) +
+labs(title = "Total PPR Points vs. Total Carries", subtitle = "Relevant Running Backs - 2023 Season", caption = "MS in Business Analytics Capstone Project by Josh Rochlin | data @nflfastr",
+	x = "Total PPR Points",
+	y = "Total Carries") +
+my_theme()
+```
+
+### **RB Rushing Touchdowns Cluster**
+
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
+#RB Touchdowns Cluster 
+
+set.seed(4)
+
+rb_cluster_tds <- kmeans(rb_basic[, c("ppr_points", "rush_tds")], centers = 4)
+
+rb_basic$cluster <- as.factor(rb_cluster_carries$cluster)
+
+# Create a scatterplot to visualize the clusters
+ggplot(data = rb_basic, aes(x = ppr_points, y = rush_tds, color = cluster, label = player_display_name)) +
+geom_point(size = 3) +
+  geom_text_repel(aes(label = player_display_name), size = 3, max.overlaps = 10) +
+scale_color_manual(values = cluster_colors, labels = cluster_labels) +
+labs(title = "Total PPR Points vs. Total Rush Touchdowns", subtitle = "Relevant Running Backs - 2023 Season", caption = "MS in Business Analytics Capstone Project by Josh Rochlin | data @nflfastr",
+	x = "Total PPR Points",
+	y = "Total Rush Touchdowns") +
+my_theme()
+```
+
+Advanced RB Stats {data-navmenu="Running Backs" data-orientation=columns}
+=============================================================================
+
+
+Column {.sidebar data-width=450}
+-----------------------------------------------------------------------------
+
+#### **Which Advanced Stats Correlate with PPR Points?**
+
+Advanced stats can provide more specific insight into how running backs are producing in the running and passing game. The `adv_reg_model` uses 10 advanced metrics to predict PPR points for the **top 30 fantasy running backs during the 2023 season**.  
+
+From the model, the only significant metric is `receptions`. Because the predictor variables are split between easily definable rushing and receiving, let us conduct a PCA to place the players into rushing and receiving groups. 
+
+#### **Advanced Stats PCA**
+
+After scaling the variables, we can see the relationship between the original variables and new factors in the second tab. 
+
+PC1 seems to be heavily correlated with rushing metrics such as **`ten_yd_rush`**, **`twenty_yd_rush`**, and **`thirty_yard_rush`**. PC1 could explain a rusher's ability to break off big runs. These runners are capable threats in the passing game, but their skills work better on the ground. 
+
+PC2 seems to be heavily correlated with receiving metrics such as **`receptions`**, **`targets`**, and **`rz_targets`** (targets in the red zone). PC2 could capture rushers that are prominent in the passing game by receiving targets out of the backfield, or getting screens called for them in the red zone. These rushers do not stand out as raw runners, instead relying on bursts of explosiveness. 
+
+Moving over to the **PCA plot**, we see that PC1 explained **42.2 percent** of the variance while PC2 explained **24.2 percent**. 
+
+Breece Hall, Bijan Robinson, and Tony Pollard were stellar pass-catching backs. Hall and Robinson were **No.1** and 
+**No.2** in targets, and Pollard was **12th in red zone targets**. Each of these backs should replicate their success in the passing game.  
+
+Derrick Henry, David Montgomery, and Jonathan Taylor are **bruisers** who have instilled confidence in fantasy owners desiring backs who can handle heavy workloads. They are run-first backs who will occasionally shine in the passing game. Henry is entering his **age 30** season and has taken so many brutal hits over eight-year career, but he does not miss games. He is now on a much better team and playing with a much better quarterback moving to the Ravens. I expect Montgomery to still collect touchdowns at the goal-line, but the young stud Jahmyr Gibbs is primed to take over the Lions backfield. Taylor should run free in Indianapolis and return to being a top five option at the position.  
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE, results = 'hide'}
+#PCA for advanced RB stats
+
+advanced_rb <- read.csv("Advanced_RB_stats.csv") %>%
+  filter(ATT > 100) %>%
+  select(-ATT) %>%
+  group_by(Player) %>%
+  filter(Rank <=30) %>%
+  select(-G, -Rank) %>% 
+  summarize(yds_per_attempt=sum(Y.ATT), broken_tackles = sum(BRKTKL), yds_after_contact = sum(YACON), ten_yd_rush = sum(X10..YDS), twenty_yd_rush = sum(X20..YDS), thirty_yd_rush = sum(X30..YDS), long_rush = sum(LNG),  receptions = sum(REC), targets = sum(TGT), rz_targets = sum(RZ.TGT))
+
+
+
+#Removing team abbreviations
+advanced_rb <- advanced_rb %>%
+  mutate(Player = str_remove(Player, " \\(.*\\)"))
+
+#Mutating player names to match 
+advanced_rb <- advanced_rb %>%
+  mutate(Player = ifelse(Player == "De'Von Achane", "Devon Achane", Player)) %>%
+  mutate(Player = ifelse(Player == "Brian Robinson Jr.", "Brian Robinson", Player)) %>%
+  mutate(Player = ifelse(Player == "Kenneth Walker III", "Kenneth Walker", Player)) %>%
+  mutate(Player = ifelse(Player == "Travis Etienne Jr.", "Travis Etienne", Player))
+```
+
+```{r, , message = FALSE, warning = FALSE, echo = FALSE, results = 'hide'}
+
+#Finding correlation between advanced stats and ppr points
+RBpts_23 <- offensive.stats %>%
+  filter(position == "RB" & season == 2023) %>%
+  group_by(player_display_name) %>%
+  summarize(ppr_points = sum(fantasy_points_ppr)) %>%
+  arrange(-ppr_points)
+
+advanced_rb <- advanced_rb %>%
+  left_join(RBpts_23, by = c("Player" = "player_display_name"))
+```
+
+Column {.tabset .tabset-fade}
+-----------------------------------------------------------------------------
+
+### **Advanced Stats and PPR Linear Model**
+
+```{r, message = FALSE, warning = FALSE, echo = TRUE}
+#Advanced Stats and PPR Points Linear Model 
+adv_reg_model = lm(ppr_points ~. -Player, data = advanced_rb)
+summary(adv_reg_model)
+```
+
+### **Advanced RB Stats Variance**
+
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE, results = 'hide'}
+#Setting up PCA
+rusher_names <- advanced_rb$Player
+
+rusher_pca <- advanced_rb %>%
+  select(-Player, -ppr_points)
+
+rownames(rusher_pca) <- rusher_names
+
+rusher_pca <- prcomp(rusher_pca, center = TRUE, scale = TRUE)
+
+
+```
+
+
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
+rusher_pca
+```
+
+
+### **Advanced RB Stats PCA Plot**
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE, results = 'hide'}
+#Getting variance for PCs
+get_eigenvalue(rusher_pca)
+```
+
+
+
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
+#PCA Bi-plot
+fviz_pca_biplot(rusher_pca, geom = c("point", "text"),
+                ggtheme = my_theme()) +
+  xlim(-6, 3) +
+  labs(title = "**PCA Biplot: Advanced Statistics for Top 30 Fantasy RBs**", subtitle = "2023 Season", caption = "MS in Business Analytics Capstone by Josh Rochlin | data @fantasypros" ) +
+  xlab("PC1 - 42.2%") +
+  ylab("PC2 - 24.2%")
+```
+
+
+Lasso Regression {data-navmenu="Wide Receivers" data-orientation=columns}
+=============================================================================
+
+
+Column {.sidebar data-width=450}
+-----------------------------------------------------------------------------
+
+#### **Feature Variable Selection Using Lasso**
+
+
+Next, we will investigate which stats are suitable for predicting wide receiver fantasy production. For this exercise, we are looking at receivers from **2021-2023 with minimum 100 total PPR fantasy points**.  
+
+The `wr_stats` dataset includes nine variables. Other than the basic metrics such as `receptions`, `targets`, `receiving_yards`, and `receiving_tds`, I have included some advanced statistics that could provide deeper insight into what makes a well-rounded fantasy receiver:
+
+1. **`avg_receiving_epa`**: The average expected points a receiver contributes to their team.
+
+2. **`target_share`**: The average number of passing targets towards a receiver. 
+
+3. **`air_yards_share`**: Average receiving yards a receiver gets without counting yards after a catch
+
+4. **`wopr`** (Weighted Opportunity Rating): Weighted combination of the target share and air yards share. The formula is WOPR = 1.5(Target Share) + .7(Air Yards Share) 
+
+After omitting NAs, the dataset has 131 players. Because we need to select suitable variables, we will perform lasso regression in addition to ridge regression. 
+
+#### **Ridge Regression Process**
+
+The code for the Ridge Regression Process can be found in the **second tab to the right**. 
+
+The data is prepared for ridge regression by passing in an x matrix and a y vector. The ridge regression is then performed on the training data.
+
+#### **Cross-Validation to Choose Lambda**
+
+The best lambda value **(5.6)** is then selected through cross-validation.
+
+#### **Test MSE**
+
+I received a test MSE of **264.52**, which suggests that the model performs well. 
+
+#### **Variable Selection**
+
+There are five variables that are exactly zero in the lasso model for best lambda. They are: 
+
+1. **`targets`**
+
+2. **`avg_receiving_epa`**
+
+3. **`target_share`**
+
+4. **`air_yards_share`**
+
+5. **`wopr`**
+
+There are three variables that should be included in the model. They are:
+
+1. **`receptions`**
+
+2. **`receiving_yards`**
+
+3. **`receiving_tds`**
+
+**`Targets`** is the only basic stat not featured in the lasso model. Targets lead to receptions, which lead to yards, which lead to scoring opportunities, so it is interesting to see its non-importance for this group of receivers. 
+
+The rest of the stats in the model are advanced stats that do not really stick to receivers. WOPR contextualizes how much a team uses a player during a given game, but it does not correlate on its own to how much value a receiver has in fantasy. A great receiving threat on a poor, low-volume passing offense will have a high WOPR because he may be the only viable option on that offense. A high-volume passing offense led by a good-to-great quarterback can have receivers with lower WORPs because the ball is spread around with ease.   
+
+Davante Adams led the league in WORP among receivers last season. Adams had a modest fantasy season for his gaudy standards, but he played on a Raiders offense that was among the worst in the NFL. The same goes for the Jets Garrett Wilson, who finished second in WORP. New York was second-to-last in yards per passing attempt. Adams and Wilson are fine fantasy options, but when it comes down to WORP, opportunity does not always equal production.
+
+From the lasso model, it makes sense that the significant predictors are the only stats that matter in traditional PPR scoring. We can make the assumption that opportunity and production are big drivers of fantasy success for receivers. Opportunity comes from **`receptions`**, and production comes from doing **something meaningful** with those receptions. Getting into the end-zone is the most meaningful thing a receiver can do on the football field, and it appears to be the strongest indicator of a dominant fantasy receiver.  
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE, results = 'hide'}
+#Preparing Ridge and Lasso Regression 
+wr_stats <- load_player_stats(2021:2023) %>%
+  filter(position == "WR") %>%
+  group_by(player_display_name) %>%
+  summarize(receptions =sum(receptions), targets =sum(targets), receiving_yards = sum(receiving_yards), receiving_tds = sum(receiving_tds), avg_receiving_epa =mean(receiving_epa), target_share=mean(target_share), air_yards_share =mean(air_yards_share), wopr = sum(wopr), ppr_points = sum(fantasy_points_ppr)) %>%
+  filter(ppr_points >= 100) %>%
+  select(-player_display_name)
+```
+
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE, results = 'hide'}
+#Omitting NAs
+wr_stats=na.omit(wr_stats)
+```
+
+
+Column {.tabset .tabset-fade}
+-----------------------------------------------------------------------------
+
+### **wr_stats Summary**
+
+```{r, message = FALSE, warning = FALSE, echo = TRUE}
+#Summary of wr_stats
+summary(wr_stats)
+```
+
+
+### **Ridge Regression Process**
+
+```{r, message = FALSE, warning = FALSE, echo = TRUE}
+x=model.matrix(ppr_points~.,wr_stats)[,-1]
+y=wr_stats$ppr_points
+
+```
+
+
+```{r, message = FALSE, warning = FALSE, echo = TRUE}
+
+#Running the Ridge regression
+ridge.mod=glmnet(x,y,alpha=0)
+```
+
+
+```{r, message = FALSE, warning = FALSE, echo = TRUE}
+
+#Train created below is randomly selected row-numbers
+set.seed(0)
+train=sample(1:nrow(x),nrow(x)/2)
+
+test=(-train)
+#Preparing dataset for cross-validation
+x.train=x[train,]
+y.train=y[train]
+x.test=x[test,]
+y.test=y[test]
+```
+
+
+### **Cross-Validation to Choose Lambda**
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
+#using cross-validation to get best lambda
+set.seed(0)
+cv.out=cv.glmnet(x.train,y.train,alpha=1)
+plot(cv.out)
+```
+
+### **Best Lambda and Test MSE**
+
+```{r, message = FALSE, warning = FALSE, echo = TRUE}
+bestlam=cv.out$lambda.min
+bestlam
+
+ridge.pred=predict(ridge.mod,s=bestlam ,newx=x.test)
+mean((ridge.pred-y.test)^2)
+
+```
+
+### **Variable Selection**
+
+```{r, message = FALSE, warning = FALSE, echo = TRUE}
+out=glmnet(x,y,alpha=1)
+predict(out,type="coefficients",s=bestlam)[1:9,]
+```
+
+
+Future Work {data-navmenu="Wrap-Up"}
+=============================================================================
+
+Row
+-----------------------------------------------------------------------------
+
+### **Future Work**
+
+The insights gathered in this work can help maximize a fantasy football draft strategy. Even though it is always good to have more data on hand for a draft, data needs to be treated as a tool used to make decisions. It can only take your team so far. The analysis in this work is not a bible. I need to be my own expert.   
+
+I will be able to build upon the models I created and make them stronger as I move through the final semester of my master's program. This growth will be helpful in the midst of the fantasy season. I hope to turn this publication into a blog where I can share my thoughts about all the sports I enjoy.   
+
+
+
+References {data-navmenu="References"}
+=============================================================================
+
+Row
+-----------------------------------------------------------------------------
+
+### **References**
+
+1. Berremen, Brad: "Lions' 'Thunder and Lightning' running back duo takes rightful place in ranking." Sidelion Report. June 17, 2024. 
+https://sidelionreport.com/posts/detroit-lions-running-back-duo-takes-rightful-place-in-ranking
+
+2. Clawson, Douglas: "Reality of being an NFL running back: Why the position has been devalued and how we got to this point." CBS Sports. August 3, 2023. https://www.cbssports.com/nfl/news/reality-of-being-an-nfl-running-back-why-the-position-has-been-devalued-and-how-we-got-to-this-point/
+
+3. Eckert, Clayton: "2023 Steelers Offense: Passing Success Rates Through Week 17." Steelers Depot. January 4, 2024. https://steelersdepot.com/2024/01/2023-steelers-offense-passing-success-rates-through-week-17/
+
+4. Gardner, Steve: "Money. Power. Women. The driving forces behind fantasy football's skyrocketing popularity." USA Today. December 15, 2023. https://www.usatoday.com/story/sports/nfl/fantasy/2023/12/15/fantasy-football-sports-economy/71870731007/
+
+5. Kelley, Daniel: "How the quarterbacks accumulated their fantasy scoring." Pro Football Focus. April 16, 2019. https://www.pff.com/news/fantasy-football-how-the-quarterbacks-accumulated-their-fantasy-scoring.
+
+6. Ryner, Sam: "Predicting Fantasy Performance After Big Contract Signings (2022 Fantasy Football)." Fantasypros. June 29, 2022. 
+https://www.fantasypros.com/2022/06/predicting-fantasy-performance-after-big-contract-signings-2022-fantasy-football/
+
+
+
+
+
+
